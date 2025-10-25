@@ -1,6 +1,12 @@
 ## WIP (Work In Progress)- EM DESENVOLVIMENTO
 # Produto Educacional: Ondas sonoras com Arduino 🔊
-  
+
+### Autores:
+- Andrei Luiz da Silva Rodrigues
+- Gabrielle Cordeiro Santana
+- Lucas Ricardo de Lima Figueiredo
+- Victor Massena
+
 ### Componentes:
 1. Arduino Uno
 2. Sensor Ultrassônico
@@ -28,4 +34,5 @@
   9.  Pronto!!
   
 ### PDF do projeto:
+
 
