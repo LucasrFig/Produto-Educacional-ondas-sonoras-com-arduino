@@ -5,7 +5,7 @@
 - Andrei Luiz da Silva Rodrigues
 - Gabrielle Cordeiro Santana
 - Lucas Ricardo de Lima Figueiredo
-- Victor Massena
+- Vítor Massena dos Santos
 
 ### Componentes:
 1. Arduino Uno
