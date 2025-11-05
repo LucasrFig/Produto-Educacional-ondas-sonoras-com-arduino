@@ -53,7 +53,7 @@ void medirSom();//- Modo de operação: Medir Velocidade do som!
 void medirDistancia();//- Modo de operação: Medir distância de um objeto!
 void medirVelocidade();//- Modo de operação: Medir Velocidade de um objeto!
 void modoRadar();//- Modo de operação: Modo radar!
-
+int radarCalcularDistancia();//Calcular a distancia no modo radar
 
 
 /*O SetUp() serve para fazer todas as inicializações e configurações necessárias para funcionamento do programa.
@@ -215,48 +215,72 @@ void medirSom(){
   }
 }
 
-void modoRadar(){
-  lcd.setCursor(0, 0);
-  lcd.print("Modo 4: ");
-  lcd.setCursor(0, 1);
-  lcd.print("Radar");
+void medirDistancia(){
 
-  /*AQUI NÃO É O CÓDIGO DO RADAR, COLOQUEI ESSE TRECHO DE CÓDIGO COMO TESTE AQUI SOMENTE PARA TESTAR O 
-  FUNCIONAMENTO DOS BOTÕES! QUEM FOR POR O CÓDIGO DO RADAR, PODE COLOCAR AQUI E APAGAR ESSE!*/
-
-
-  //faz o motor girar de um lado pro outroo
-  
-  static unsigned long ultimoMovimentoRadar = 0;
-  static int anguloRadar = 0;
-  static int passoRadar = 5;
-
-  const long intervaloPasso = 70;
-  unsigned long tempoAtual = millis();
-
-  if((tempoAtual - ultimoMovimentoRadar) > intervaloPasso){
-    ultimoMovimentoRadar = tempoAtual;
-    radarMotor.write(anguloRadar);
-    anguloRadar += passoRadar;
-
-    if (anguloRadar >= 180) {
-      anguloRadar = 180; 
-      passoRadar = -5; 
-    } else if (anguloRadar <= 0) {
-      anguloRadar = 0;
-      passoRadar = 5; 
-    }
-
-  }/**/
 }
 
-void medirDistancia(){
-  lcd.setCursor(0, 0);
-  lcd.print("Modo 2: ");
-  lcd.setCursor(0, 1);
-  lcd.print("Medir Distancia           ");
-
+//Funcoes modo radar
+int radarCalcularDistancia(){ 
   
+  digitalWrite(ultraTrigPin, LOW); // << Modificado
+  delayMicroseconds(2);
+  // Sets the trigPin on HIGH state for 10 micro seconds
+  digitalWrite(ultraTrigPin, HIGH); // << Modificado
+  delayMicroseconds(10);
+  digitalWrite(ultraTrigPin, LOW); // << Modificado
+  
+  long duration = pulseIn(ultraEchoPin, HIGH); // << Modificado
+  int distance = duration*0.034/2;
+  return distance;
+}
+
+void modoRadar(){
+  // Variáveis estáticas para guardar o estado do radar (só existem dentro desta função)
+  static unsigned long ultimoMovimentoRadar = 0;
+  static int anguloRadar = 15;
+  static int passoRadar = 1;   // Move 1 grau de cada vez
+  
+  // Define o intervalo de tempo (em milissegundos) entre cada passo
+  const long intervaloPasso = 30; 
+  
+  // Atualiza o display LCD para informar o modo
+  lcd.setCursor(0, 0);
+  lcd.print("Modo 4: Radar   ");
+  lcd.setCursor(0, 1);
+  lcd.print("Enviando dados..");
+
+  // Verifica se já passou o tempo de 30ms desde o último movimento
+  unsigned long tempoAtual = millis();
+  if (tempoAtual - ultimoMovimentoRadar > intervaloPasso) {
+    
+    // Reseta o "cronômetro"
+    ultimoMovimentoRadar = tempoAtual;
+
+    // 1. Move o servo para o ângulo atual
+    radarMotor.write(anguloRadar);
+    
+    // 2. Calcula a distância
+    int distance = radarCalcularDistancia(); // Chama a função que copiamos
+
+    // 3. Envia os dados pela Serial (para o Processing)
+    // Exatamente no mesmo formato que o Main.c fazia
+    Serial.print(anguloRadar);
+    Serial.print(",");
+    Serial.print(distance);
+    Serial.print(".");
+
+    // 4. Atualiza o ângulo para o próximo ciclo
+    anguloRadar = anguloRadar + passoRadar;
+
+    // 5. Verifica se chegou nos limites (165 ou 15 graus) e inverte a direção
+    if (anguloRadar >= 165) {
+      anguloRadar = 165;
+      passoRadar = -1; // Inverte para começar a descer
+    } else if (anguloRadar <= 15) {
+      anguloRadar = 15;
+      passoRadar = 1;  // Inverte para começar a subir
+    }
+  }
 }
 
 void medirVelocidade(){
