@@ -51,7 +51,7 @@ void medirSom();//- Modo de operação: Medir Velocidade do som!
 void medirDistancia();//- Modo de operação: Medir distância de um objeto!
 void medirVelocidade();//- Modo de operação: Medir Velocidade de um objeto!
 void modoRadar();//- Modo de operação: Modo radar!
-int radarCalculateDistance();//Calcular a distancia no modo radar
+int radarCalcularDistancia();//Calcular a distancia no modo radar
 
 
 /*O SetUp() serve para fazer todas as inicializações e configurações necessárias para funcionamento do programa.
@@ -204,7 +204,11 @@ void medirSom(){
   }
 }
 
-// Cole esta função em algum lugar do seu main.cpp, fora de outras funções
+void medirDistancia(){
+
+}
+
+//Funcoes modo radar
 int radarCalcularDistancia(){ 
   
   digitalWrite(ultraTrigPin, LOW); // << Modificado
@@ -222,7 +226,7 @@ int radarCalcularDistancia(){
 void modoRadar(){
   // Variáveis estáticas para guardar o estado do radar (só existem dentro desta função)
   static unsigned long ultimoMovimentoRadar = 0;
-  static int anguloRadar = 15;c
+  static int anguloRadar = 15;
   static int passoRadar = 1;   // Move 1 grau de cada vez
   
   // Define o intervalo de tempo (em milissegundos) entre cada passo
@@ -245,7 +249,7 @@ void modoRadar(){
     radarMotor.write(anguloRadar);
     
     // 2. Calcula a distância
-    int distance = radarCalculateDistance(); // Chama a função que copiamos
+    int distance = radarCalcularDistancia(); // Chama a função que copiamos
 
     // 3. Envia os dados pela Serial (para o Processing)
     // Exatamente no mesmo formato que o Main.c fazia
