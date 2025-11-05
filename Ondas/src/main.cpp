@@ -10,10 +10,10 @@
 const int servoPin = 3;
 const int ultraEchoPin = 12;
 const int ultraTrigPin = 13;
-const int button1Pin = 7;
-const int button2Pin = 8;
-const int button3Pin = 9;
-const int button4Pin = 10;
+const int button1Pin = 7;//Amarelo
+const int button2Pin = 8;//Azul
+const int button3Pin = 9;//Verde
+const int button4Pin = 10;//Vermelho
 //const int displaySCLPin; não é necessário especificar
 //const int displaySDAPin; não é necessário especificar
 
@@ -23,7 +23,9 @@ Servo radarMotor;//Cria um objeto para controle do servomotor
 LiquidCrystal_I2C lcd(0x27, 16, 2);//Cria objeto para controle de um display LCD formato -> (16:2)
 int modo = 0;//Guarda o modo de operação selecionado
 float VelocidadeSom = 0.0;//Guarda a Velocidade do Som que vamos usar no código
-const float distancia = 10;//Distância em centimetros (10E-2) do S.Ultrassônico até o obstáculo de apoio.
+const float distancia = 12;//Distância em centimetros (10E-2) do S.Ultrassônico até o obstáculo de apoio.
+long int tempoDeMedicao = 7000;// sete segundos
+bool AcessoLiberado  = false;//diz se podemos utilizar as outras funções
 
 
 //Variáveis para ajustes de tempo nas funções:
@@ -113,13 +115,13 @@ void select(){
       modo = 1;         
       momentoAtivacao = millis();
     } 
-    else if (digitalRead(button2Pin) == LOW) {
+    else if (digitalRead(button2Pin) == LOW && VelocidadeSom>0.0) {
       modo = 2;         
     } 
-    else if (digitalRead(button3Pin) == LOW) {
+    else if (digitalRead(button3Pin) == LOW && VelocidadeSom>0.0) {
       modo = 3;            
     } 
-    else if (digitalRead(button4Pin) == LOW) {
+    else if (digitalRead(button4Pin) == LOW && VelocidadeSom>0.0) {
       modo = 4;         
       
     }
@@ -163,19 +165,28 @@ void modoOperacao(){
 }
 
 void medirSom(){
-  /*NÃO ESTÁ FINALIZADO AINDA*/
-  radarMotor.write(180);
-  
-  delayMicroseconds(2);
-  digitalWrite(ultraTrigPin,HIGH);//Envia pulso
-  delayMicroseconds(10);
-  digitalWrite(ultraTrigPin,LOW);
-  
-  static int duracao;
-  duracao = pulseIn(ultraEchoPin,HIGH);//mede tempo que o pulso estava ligado (em microsegundos)
-  
-  VelocidadeSom = (20000.0*distancia/duracao);
-  
+  if((millis() - momentoAtivacao) < tempoDeMedicao){
+    radarMotor.write(180);
+
+    AcessoLiberado = false;//Impede a troca de função
+
+    //Ativar sensor ultrassônico
+    delayMicroseconds(2);
+    digitalWrite(ultraTrigPin,HIGH);//Envia pulso
+    delayMicroseconds(10);
+    digitalWrite(ultraTrigPin,LOW);
+    
+    static int duracao;
+    duracao = pulseIn(ultraEchoPin,HIGH);//mede tempo que o pulso estava ligado (em microsegundos)
+    
+    //Armazenar a velocidade do som:
+    VelocidadeSom = (20000.0*distancia/duracao);
+  }else{
+    AcessoLiberado = true;
+    radarMotor.write(90);
+  }
+
+
   if((millis() - momentoAtivacao)<=tempoMensagem){
     if((millis() - ultimaAtualizacaoLCD)>tempoDeSeguranca){
       
@@ -210,8 +221,8 @@ void modoRadar(){
   lcd.setCursor(0, 1);
   lcd.print("Radar");
 
-  /* AQUI NÃO É O CÓDIGO DO RADAR, COLOQUEI ESSE TRECHO DE CÓDIGO COMO TESTE AQUI SOMENTE PARA TESTAR O 
-  FUNCIONAMENTO DOS BOTÕES! QUEM FOR POR O CÓDIGO DO RADAR, PODE COLOCAR AQUI E APAGAR ESSE!
+  /*AQUI NÃO É O CÓDIGO DO RADAR, COLOQUEI ESSE TRECHO DE CÓDIGO COMO TESTE AQUI SOMENTE PARA TESTAR O 
+  FUNCIONAMENTO DOS BOTÕES! QUEM FOR POR O CÓDIGO DO RADAR, PODE COLOCAR AQUI E APAGAR ESSE!*/
 
 
   //faz o motor girar de um lado pro outroo
