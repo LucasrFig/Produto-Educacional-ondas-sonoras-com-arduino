@@ -23,6 +23,7 @@ Servo radarMotor;//Cria um objeto para controle do servomotor
 LiquidCrystal_I2C lcd(0x27, 16, 2);//Cria objeto para controle de um display LCD formato -> (16:2)
 int modo = 0;//Guarda o modo de operação selecionado
 float VelocidadeSom = 0.0;//Guarda a Velocidade do Som que vamos usar no código
+static float distanciaObjeto;
 const float distancia = 11;//Distância em centimetros (10E-2) do S.Ultrassônico até o obstáculo de apoio.
 unsigned long int tempoDeMedicao = 7000;// sete segundos
 bool AcessoLiberado  = false;//diz se podemos utilizar as outras funções
@@ -215,20 +216,19 @@ void medirSom(){
 }
 
 void medirDistancia(){
- static float distanciaObjeto;
-  static float duracao;
 
   if((millis() - momentoAtivacao) < tempoDeMedicao){
     AcessoLiberado = false;
     //Vira o sensor para frente
     radarMotor.write(90);
+    static float duracao;
 
     //Ativar sensor ultrassônico
     delayMicroseconds(2);
     digitalWrite(ultraTrigPin,HIGH);//Envia pulso
     delayMicroseconds(10);
     digitalWrite(ultraTrigPin,LOW);
-
+    
     
     duracao = pulseIn(ultraEchoPin,HIGH);//mede tempo que o pulso estava ligado (em microsegundos)
 
@@ -334,5 +334,21 @@ void medirVelocidade(){
   lcd.print("Modo 3: ");
   lcd.setCursor(0, 1);
   lcd.print("Medir Velocidade      ");
-}
 
+  distanciaObjeto = 0.0;
+  float distanciaObjeto2 = 0.0;
+  float vel;
+
+  medirDistancia();
+
+  distanciaObjeto2 = distanciaObjeto;
+  delayMicroseconds(1000);
+
+  medirDistancia();
+
+  vel = distanciaObjeto - distanciaObjeto2;
+
+  lcd.setCursor(0, 0);
+  lcd.print(vel + "m/s");
+
+}
