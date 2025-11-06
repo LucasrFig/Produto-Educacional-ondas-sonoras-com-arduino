@@ -23,25 +23,25 @@ Servo radarMotor;//Cria um objeto para controle do servomotor
 LiquidCrystal_I2C lcd(0x27, 16, 2);//Cria objeto para controle de um display LCD formato -> (16:2)
 int modo = 0;//Guarda o modo de operação selecionado
 float VelocidadeSom = 0.0;//Guarda a Velocidade do Som que vamos usar no código
-const float distancia = 12;//Distância em centimetros (10E-2) do S.Ultrassônico até o obstáculo de apoio.
-long int tempoDeMedicao = 7000;// sete segundos
+const float distancia = 10.5;//Distância em centimetros (10E-2) do S.Ultrassônico até o obstáculo de apoio.
+unsigned long int tempoDeMedicao = 7000;// sete segundos
 bool AcessoLiberado  = false;//diz se podemos utilizar as outras funções
 
 
 //Variáveis para ajustes de tempo nas funções:
   //Debounce dos botões na interrupção:
-    long int ultimaInterrupcao = 0;
+    unsigned long int ultimaInterrupcao = 0;
     const int tempoDebounce = 50;
   /*Controlar o tempo de atualização do LCD para não sobrecarregá-lo(Não se preocupem muito com isso, 
   se vacilarmos com isso, o máximo que acontece é o display não conseguir escrever nada pq ta atualizando
   rapido demais, não possui o risco de queimar, nem nada sério)*/
-    long int ultimaAtualizacaoLCD = 0;
+    unsigned long int ultimaAtualizacaoLCD = 0;
     const int tempoDeSeguranca = 1500;
   /*Controlar o tempo de exibição de uma mensagem no display após acionamento de um novo modo de operação.
   A gente faz isso pq se usarmos uma função de "pausa" como o delay(), ele para o programa completamente 
   durante o tempo selecionado, aqui não, a gente só verifica se o tempo selecionado já passou sem pausar o 
   programa:*/
-    long int momentoAtivacao = 0;
+    unsigned long int momentoAtivacao = 0;
     const int tempoMensagem = 4000;//Ativa a mensagem por 4 segundos
 
 
@@ -116,7 +116,8 @@ void select(){
       momentoAtivacao = millis();
     } 
     else if (digitalRead(button2Pin) == LOW && VelocidadeSom>0.0) {
-      modo = 2;         
+      modo = 2;     
+      momentoAtivacao = millis();    
     } 
     else if (digitalRead(button3Pin) == LOW && VelocidadeSom>0.0) {
       modo = 3;            
@@ -190,8 +191,6 @@ void medirSom(){
   if((millis() - momentoAtivacao)<=tempoMensagem){
     if((millis() - ultimaAtualizacaoLCD)>tempoDeSeguranca){
       
-      Serial.print("Estou no loop 2. \n");
-      
       ultimaAtualizacaoLCD = millis();
       lcd.clear();
       lcd.setCursor(0, 0);
@@ -203,7 +202,6 @@ void medirSom(){
   }else{
     if((millis() - ultimaAtualizacaoLCD)>tempoDeSeguranca){
 
-      Serial.print("Estou no loop 3. \n");
       ultimaAtualizacaoLCD = millis();
       lcd.clear();
       lcd.setCursor(0, 0);
@@ -251,12 +249,55 @@ void modoRadar(){
 }
 
 void medirDistancia(){
-  lcd.setCursor(0, 0);
-  lcd.print("Modo 2: ");
-  lcd.setCursor(0, 1);
-  lcd.print("Medir Distancia           ");
+  static float distanciaObjeto;
+  static float duracao;
 
-  
+  if((millis() - momentoAtivacao) < tempoDeMedicao){
+    AcessoLiberado = false;
+    //Vira o sensor para frente
+    radarMotor.write(90);
+
+    //Ativar sensor ultrassônico
+    delayMicroseconds(2);
+    digitalWrite(ultraTrigPin,HIGH);//Envia pulso
+    delayMicroseconds(10);
+    digitalWrite(ultraTrigPin,LOW);
+
+    
+    duracao = pulseIn(ultraEchoPin,HIGH);//mede tempo que o pulso estava ligado (em microsegundos)
+
+    
+    distanciaObjeto = (VelocidadeSom * duracao/20000.0);
+  }else{
+    AcessoLiberado = true;
+  }
+
+  if((millis() - momentoAtivacao)<=tempoMensagem){
+    if((millis() - ultimaAtualizacaoLCD)>tempoDeSeguranca){
+      
+      ultimaAtualizacaoLCD = millis();
+      lcd.clear();
+      lcd.setCursor(0, 0);
+      lcd.print("Modo 2: ");
+      lcd.setCursor(0, 1);
+      lcd.print("Medir Distancia           ");
+    }
+    
+  }else{
+    if((millis() - ultimaAtualizacaoLCD)>tempoDeSeguranca){
+      Serial.println(distanciaObjeto);
+
+      ultimaAtualizacaoLCD = millis();
+      lcd.clear();
+      lcd.setCursor(0, 0);
+      lcd.print("Distancia:");
+      lcd.setCursor(0, 1);
+      lcd.print(distanciaObjeto);  lcd.print(" cm");
+    }
+
+  }
+
+
 }
 
 void medirVelocidade(){
