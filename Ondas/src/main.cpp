@@ -23,7 +23,6 @@ Servo radarMotor;//Cria um objeto para controle do servomotor
 LiquidCrystal_I2C lcd(0x27, 16, 2);//Cria objeto para controle de um display LCD formato -> (16:2)
 int modo = 0;//Guarda o modo de operação selecionado
 float VelocidadeSom = 0.0;//Guarda a Velocidade do Som que vamos usar no código
-static float distanciaObjeto;
 const float distancia = 11;//Distância em centimetros (10E-2) do S.Ultrassônico até o obstáculo de apoio.
 unsigned long int tempoDeMedicao = 7000;// sete segundos
 bool AcessoLiberado  = false;//diz se podemos utilizar as outras funções
@@ -222,6 +221,7 @@ void medirDistancia(){
     //Vira o sensor para frente
     radarMotor.write(90);
     static float duracao;
+    static float distanciaObjeto;
 
     //Ativar sensor ultrassônico
     delayMicroseconds(2);
@@ -335,20 +335,42 @@ void medirVelocidade(){
   lcd.setCursor(0, 1);
   lcd.print("Medir Velocidade      ");
 
-  distanciaObjeto = 0.0;
-  float distanciaObjeto2 = 0.0;
-  float vel;
+  static float duracao;
+  static float duracao2;
+  static float distanciaObjeto;
+  static float distanciaObjeto2;
+  static float velocidadeObj;
 
-  medirDistancia();
+  //Ativar sensor ultrassônico
+  delayMicroseconds(2);
+  digitalWrite(ultraTrigPin,HIGH);//Envia pulso
+  delayMicroseconds(10);
+  digitalWrite(ultraTrigPin,LOW);
+    
+    
+  duracao = pulseIn(ultraEchoPin,HIGH);//mede tempo que o pulso estava ligado (em microsegundos)
 
-  distanciaObjeto2 = distanciaObjeto;
+    
+  distanciaObjeto = (VelocidadeSom * duracao/20000.0);
+
   delayMicroseconds(1000);
 
-  medirDistancia();
+  //Ativar sensor ultrassônico
+  delayMicroseconds(2);
+  digitalWrite(ultraTrigPin,HIGH);//Envia pulso
+  delayMicroseconds(10);
+  digitalWrite(ultraTrigPin,LOW);
+    
+    
+  duracao2 = pulseIn(ultraEchoPin,HIGH);//mede tempo que o pulso estava ligado (em microsegundos)
 
-  vel = distanciaObjeto - distanciaObjeto2;
+    
+  distanciaObjeto2 = (VelocidadeSom * duracao2/20000.0);
+
+  velocidadeObj = (distanciaObjeto-distanciaObjeto2)/((duracao+duracao2+1000)/1000);
 
   lcd.setCursor(0, 0);
-  lcd.print(vel + "m/s");
+  lcd.print(velocidadeObj + "m/s");
 
 }
+
