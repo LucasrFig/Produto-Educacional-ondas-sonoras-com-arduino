@@ -1,161 +1,338 @@
-/*   Arduino Radar Project
- *
- *   Updated version. Fits any screen resolution!
- *   Just change the values in the size() function,
- *   with your screen resolution.
- *      
- *  by Dejan Nedelkovski, 
- *  www.HowToMechatronics.com
- *  
- */
+#include <Arduino.h>
+#include <Servo.h>
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+#include <PinChangeInterrupt.h>
 
-import processing.serial.*; // imports library for serial communication
-import java.awt.event.KeyEvent; // imports library for reading the data from the serial port
-import java.io.IOException;
 
-Serial myPort; // defines Object Serial
-// defubes variables
-String angle="";
-String distance="";
-String data="";
-String noObject;
-float pixsDistance;
-int iAngle, iDistance;
-int index1=0;
-int index2=0;
-PFont orcFont;
 
+//Entradas e conexões(modificar de acordo com as conexões escolhidas no arduino)
+const int servoPin = 3;
+const int ultraEchoPin = 12;
+const int ultraTrigPin = 13;
+const int button1Pin = 7;//Amarelo
+const int button2Pin = 8;//Azul
+const int button3Pin = 9;//Verde
+const int button4Pin = 10;//Vermelho
+//const int displaySCLPin; não é necessário especificar
+//const int displaySDAPin; não é necessário especificar
+
+
+//Variáveis para controle do programa:----------------------------------------------------------------
+Servo radarMotor;//Cria um objeto para controle do servomotor
+LiquidCrystal_I2C lcd(0x27, 16, 2);//Cria objeto para controle de um display LCD formato -> (16:2)
+int modo = 0;//Guarda o modo de operação selecionado
+float VelocidadeSom = 0.0;//Guarda a Velocidade do Som que vamos usar no código
+const float distancia = 11;//Distância em centimetros (10E-2) do S.Ultrassônico até o obstáculo de apoio.
+unsigned long int tempoDeMedicao = 7000;// sete segundos
+bool AcessoLiberado  = false;//diz se podemos utilizar as outras funções
+
+
+//Variáveis para ajustes de tempo nas funções:
+  //Debounce dos botões na interrupção:
+    unsigned long int ultimaInterrupcao = 0;
+    const int tempoDebounce = 50;
+  /*Controlar o tempo de atualização do LCD para não sobrecarregá-lo(Não se preocupem muito com isso, 
+  se vacilarmos com isso, o máximo que acontece é o display não conseguir escrever nada pq ta atualizando
+  rapido demais, não possui o risco de queimar, nem nada sério)*/
+    unsigned long int ultimaAtualizacaoLCD = 0;
+    const int tempoDeSeguranca = 1500;
+  /*Controlar o tempo de exibição de uma mensagem no display após acionamento de um novo modo de operação.
+  A gente faz isso pq se usarmos uma função de "pausa" como o delay(), ele para o programa completamente 
+  durante o tempo selecionado, aqui não, a gente só verifica se o tempo selecionado já passou sem pausar o 
+  programa:*/
+    unsigned long int momentoAtivacao = 0;
+    const int tempoMensagem = 4000;//Ativa a mensagem por 4 segundos
+
+
+
+//Funções para funcionamento do dispositivo:---------------------------------------------------------------------------------
+void select();//- altera o valor da variável (modo) com uma interrupção
+void modoOperacao();//- Verifica a variável (modo) e altera o modo de operação do dispositivo
+void medirSom();//- Modo de operação: Medir Velocidade do som!
+void medirDistancia();//- Modo de operação: Medir distância de um objeto!
+void medirVelocidade();//- Modo de operação: Medir Velocidade de um objeto!
+void modoRadar();//- Modo de operação: Modo radar!
+int radarCalcularDistancia();//Calcular a distancia no modo radar
+
+
+/*O SetUp() serve para fazer todas as inicializações e configurações necessárias para funcionamento do programa.
+Ele roda primeiro que o loop e roda apenas UMA vez. Necessário para comunicação com o arduino!!!
+*/
 void setup() {
+  //Comunicação serial (Para debugar)
+  Serial.begin(9600);
+
+  //Inicializa o Servomotor
+  radarMotor.attach(servoPin);
+
+  //inicializar botões
+  pinMode(button1Pin, INPUT_PULLUP);
+  pinMode(button2Pin, INPUT_PULLUP);
+  pinMode(button3Pin, INPUT_PULLUP);
+  pinMode(button4Pin, INPUT_PULLUP);
   
- size (1920, 1080); // ***CHANGE THIS TO YOUR SCREEN RESOLUTION***
- smooth();
- myPort = new Serial(this,"COM4", 9600); // starts the serial communication
- myPort.bufferUntil('.'); // reads the data from the serial port up to the character '.'. So actually it reads this: angle,distance.
- orcFont = loadFont("OCRAExtended-30.vlw");
+  // Configura os pinos do sensor ultrassônico
+  pinMode(ultraTrigPin, OUTPUT);
+  pinMode(ultraEchoPin, INPUT);
+
+  //Apresentação(Mensagem ao ligar):
+  lcd.init();//Inicializa o display
+  lcd.backlight();//Liga a luz de fundo do display
+  lcd.setCursor(0, 0);// Poe na 1ª linha
+  lcd.print("Ondas Sonoras");
+  lcd.setCursor(0, 1);// Põe na 2ª linha
+  lcd.print("Fis exp A...");
+  delay(2500);//Aguarda 2,5 segundos e troca a mensagem:
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Aperte amarelo");
+  lcd.setCursor(0, 1);
+  lcd.print("para medir V.som");
+  
+
+  //Ativa a interrupção do código a partir dos botões e chama a função select:
+  attachInterrupt(digitalPinToPCINT(button1Pin), select, RISING);//Acionar interrupção
+  attachInterrupt(digitalPinToPCINT(button2Pin), select, RISING);//Acionar interrupção
+  attachInterrupt(digitalPinToPCINT(button3Pin), select, RISING);//Acionar interrupção
+  attachInterrupt(digitalPinToPCINT(button4Pin), select, RISING);//Acionar interrupção
+
+  
 }
 
-void draw() {
-  
-  fill(98,245,31);
-  textFont(orcFont);
-  // simulating motion blur and slow fade of the moving line
-  noStroke();
-  fill(0,4); 
-  rect(0, 0, width, height-height*0.065); 
-  
-  fill(98,245,31); // green color
-  // calls the functions for drawing the radar
-  drawRadar(); 
-  drawLine();
-  drawObject();
-  drawText();
+/*O Loop() executa o que tem dentro dele infinitas vezes igual um While(1). Necessário para comunicação com o 
+arduino!!!
+*/
+void loop() {
+  modoOperacao();//Vai executar uma função do dispositivo de acordo com o valor da variável MODO
 }
 
-void serialEvent (Serial myPort) { // starts reading data from the Serial Port
-  // reads the data from the Serial Port up to the character '.' and puts it into the String variable "data".
-  data = myPort.readStringUntil('.');
-  data = data.substring(0,data.length()-1);
-  
-  index1 = data.indexOf(","); // find the character ',' and puts it into the variable "index1"
-  angle= data.substring(0, index1); // read the data from position "0" to position of the variable index1 or thats the value of the angle the Arduino Board sent into the Serial Port
-  distance= data.substring(index1+1, data.length()); // read the data from position "index1" to the end of the data pr thats the value of the distance
-  
-  // converts the String variables into Integer
-  iAngle = int(angle);
-  iDistance = int(distance);
-}
 
-void drawRadar() {
-  pushMatrix();
-  translate(width/2,height-height*0.074); // moves the starting coordinats to new location
-  noFill();
-  strokeWeight(2);
-  stroke(98,245,31);
-  // draws the arc lines
-  arc(0,0,(width-width*0.0625),(width-width*0.0625),PI,TWO_PI);
-  arc(0,0,(width-width*0.27),(width-width*0.27),PI,TWO_PI);
-  arc(0,0,(width-width*0.479),(width-width*0.479),PI,TWO_PI);
-  arc(0,0,(width-width*0.687),(width-width*0.687),PI,TWO_PI);
-  // draws the angle lines
-  line(-width/2,0,width/2,0);
-  line(0,0,(-width/2)*cos(radians(30)),(-width/2)*sin(radians(30)));
-  line(0,0,(-width/2)*cos(radians(60)),(-width/2)*sin(radians(60)));
-  line(0,0,(-width/2)*cos(radians(90)),(-width/2)*sin(radians(90)));
-  line(0,0,(-width/2)*cos(radians(120)),(-width/2)*sin(radians(120)));
-  line(0,0,(-width/2)*cos(radians(150)),(-width/2)*sin(radians(150)));
-  line((-width/2)*cos(radians(30)),0,width/2,0);
-  popMatrix();
-}
-
-void drawObject() {
-  pushMatrix();
-  translate(width/2,height-height*0.074); // moves the starting coordinats to new location
-  strokeWeight(9);
-  stroke(255,10,10); // red color
-  pixsDistance = iDistance*((height-height*0.1666)*0.025); // covers the distance from the sensor from cm to pixels
-  // limiting the range to 40 cms
-  if(iDistance<40){
-    // draws the object according to the angle and the distance
-  line(pixsDistance*cos(radians(iAngle)),-pixsDistance*sin(radians(iAngle)),(width-width*0.505)*cos(radians(iAngle)),-(width-width*0.505)*sin(radians(iAngle)));
+void select(){
+  if ((millis() - ultimaInterrupcao) > tempoDebounce) {
+    
+    if (digitalRead(button1Pin) == LOW) {
+      modo = 1;         
+      momentoAtivacao = millis();
+    } 
+    else if (digitalRead(button2Pin) == LOW && VelocidadeSom>0.0) {
+      modo = 2;     
+      momentoAtivacao = millis();    
+    } 
+    else if (digitalRead(button3Pin) == LOW && VelocidadeSom>0.0) {
+      modo = 3;            
+    } 
+    else if (digitalRead(button4Pin) == LOW && VelocidadeSom>0.0) {
+      modo = 4;         
+      
+    }
+    
+    ultimaInterrupcao = millis();
   }
-  popMatrix();
+
 }
 
-void drawLine() {
-  pushMatrix();
-  strokeWeight(9);
-  stroke(30,250,60);
-  translate(width/2,height-height*0.074); // moves the starting coordinats to new location
-  line(0,0,(height-height*0.12)*cos(radians(iAngle)),-(height-height*0.12)*sin(radians(iAngle))); // draws the line according to the angle
-  popMatrix();
+void modoOperacao(){
+  static int modoAnterior = 0;
+
+  if(!modo){
+    return;
+  }else{
+
+    //retirar dps(tODAS AS OPERAÇÕES COM O DISPLAY VAO FICAR DENTRO DAS FUNÇÕES)
+    if(modoAnterior != modo){
+      lcd.clear(); // Limpa o display
+    }
+
+    switch (modo) {
+      case 1:
+        medirSom();
+        modoAnterior = 1;
+        break;
+      case 2:
+        medirDistancia();
+        modoAnterior = 2;
+        break;
+      case 3:
+        medirVelocidade();
+        modoAnterior = 3;
+        break;
+      case 4:
+        modoRadar();
+        modoAnterior = 4;
+        break;
+    }
+  }
 }
 
-void drawText() { // draws the texts on the screen
-  
-  pushMatrix();
-  if(iDistance>40) {
-  noObject = "Out of Range";
+void medirSom(){
+   if((millis() - momentoAtivacao) < tempoDeMedicao){
+    radarMotor.write(180);
+
+    AcessoLiberado = false;//Impede a troca de função
+
+    //Ativar sensor ultrassônico
+    delayMicroseconds(2);
+    digitalWrite(ultraTrigPin,HIGH);//Envia pulso
+    delayMicroseconds(10);
+    digitalWrite(ultraTrigPin,LOW);
+    
+    static float duracao;
+    duracao = pulseIn(ultraEchoPin,HIGH);//mede tempo que o pulso estava ligado (em microsegundos)
+
+    //Armazenar a velocidade do som:
+    VelocidadeSom = (20000.0*distancia/duracao);
+    
+  }else{
+    AcessoLiberado = true;
+    radarMotor.write(90);
   }
-  else {
-  noObject = "In Range";
+
+
+  if((millis() - momentoAtivacao)<=tempoMensagem){
+    if((millis() - ultimaAtualizacaoLCD)>tempoDeSeguranca){
+      
+      ultimaAtualizacaoLCD = millis();
+      lcd.clear();
+      lcd.setCursor(0, 0);
+      lcd.print("Modo 1:");
+      lcd.setCursor(0, 1); 
+      lcd.print("Medir Som...      ");
+    }
+    
+  }else{
+    if((millis() - ultimaAtualizacaoLCD)>tempoDeSeguranca){
+
+      ultimaAtualizacaoLCD = millis();
+      lcd.clear();
+      lcd.setCursor(0, 0);
+      lcd.print("Velocidade som:");
+      lcd.setCursor(0, 1);
+      lcd.print(VelocidadeSom);  lcd.print(" m/s");
+    }
+
   }
-  fill(0,0,0);
-  noStroke();
-  rect(0, height-height*0.0648, width, height);
-  fill(98,245,31);
-  textSize(25);
-  
-  text("10cm",width-width*0.3854,height-height*0.0833);
-  text("20cm",width-width*0.281,height-height*0.0833);
-  text("30cm",width-width*0.177,height-height*0.0833);
-  text("40cm",width-width*0.0729,height-height*0.0833);
-  textSize(40);
-  text("Object: " + noObject, width-width*0.875, height-height*0.0277);
-  text("Angle: " + iAngle +" °", width-width*0.48, height-height*0.0277);
-  text("Distance: ", width-width*0.26, height-height*0.0277);
-  if(iDistance<40) {
-  text("        " + iDistance +" cm", width-width*0.225, height-height*0.0277);
-  }
-  textSize(25);
-  fill(98,245,60);
-  translate((width-width*0.4994)+width/2*cos(radians(30)),(height-height*0.0907)-width/2*sin(radians(30)));
-  rotate(-radians(-60));
-  text("30°",0,0);
-  resetMatrix();
-  translate((width-width*0.503)+width/2*cos(radians(60)),(height-height*0.0888)-width/2*sin(radians(60)));
-  rotate(-radians(-30));
-  text("60°",0,0);
-  resetMatrix();
-  translate((width-width*0.507)+width/2*cos(radians(90)),(height-height*0.0833)-width/2*sin(radians(90)));
-  rotate(radians(0));
-  text("90°",0,0);
-  resetMatrix();
-  translate(width-width*0.513+width/2*cos(radians(120)),(height-height*0.07129)-width/2*sin(radians(120)));
-  rotate(radians(-30));
-  text("120°",0,0);
-  resetMatrix();
-  translate((width-width*0.5104)+width/2*cos(radians(150)),(height-height*0.0574)-width/2*sin(radians(150)));
-  rotate(radians(-60));
-  text("150°",0,0);
-  popMatrix(); 
 }
+
+void medirDistancia(){
+ static float distanciaObjeto;
+  static float duracao;
+
+  if((millis() - momentoAtivacao) < tempoDeMedicao){
+    AcessoLiberado = false;
+    //Vira o sensor para frente
+    radarMotor.write(90);
+
+    //Ativar sensor ultrassônico
+    delayMicroseconds(2);
+    digitalWrite(ultraTrigPin,HIGH);//Envia pulso
+    delayMicroseconds(10);
+    digitalWrite(ultraTrigPin,LOW);
+
+    
+    duracao = pulseIn(ultraEchoPin,HIGH);//mede tempo que o pulso estava ligado (em microsegundos)
+
+    
+    distanciaObjeto = (VelocidadeSom * duracao/20000.0);
+  }else{
+    AcessoLiberado = true;
+  }
+
+  if((millis() - momentoAtivacao)<=tempoMensagem){
+    if((millis() - ultimaAtualizacaoLCD)>tempoDeSeguranca){
+      
+      ultimaAtualizacaoLCD = millis();
+      lcd.clear();
+      lcd.setCursor(0, 0);
+      lcd.print("Modo 2: ");
+      lcd.setCursor(0, 1);
+      lcd.print("Medir Distancia           ");
+    }
+    
+  }else{
+    if((millis() - ultimaAtualizacaoLCD)>tempoDeSeguranca){
+      Serial.println(distanciaObjeto);
+
+      ultimaAtualizacaoLCD = millis();
+      lcd.clear();
+      lcd.setCursor(0, 0);
+      lcd.print("Distancia:");
+      lcd.setCursor(0, 1);
+      lcd.print(distanciaObjeto);  lcd.print(" cm");
+    }
+
+  }
+
+}
+
+//Funcoes modo radar
+int radarCalcularDistancia(){ 
+  
+  digitalWrite(ultraTrigPin, LOW); // << Modificado
+  delayMicroseconds(2);
+  // Sets the trigPin on HIGH state for 10 micro seconds
+  digitalWrite(ultraTrigPin, HIGH); // << Modificado
+  delayMicroseconds(10);
+  digitalWrite(ultraTrigPin, LOW); // << Modificado
+  
+  long duration = pulseIn(ultraEchoPin, HIGH); // << Modificado
+  int distance = duration*0.034/2;
+  return distance;
+}
+
+void modoRadar(){
+  // Variáveis estáticas para guardar o estado do radar (só existem dentro desta função)
+  static unsigned long ultimoMovimentoRadar = 0;
+  static int anguloRadar = 15;
+  static int passoRadar = 1;   // Move 1 grau de cada vez
+  
+  // Define o intervalo de tempo (em milissegundos) entre cada passo
+  const long intervaloPasso = 30; 
+  
+  // Atualiza o display LCD para informar o modo
+  lcd.setCursor(0, 0);
+  lcd.print("Modo 4: Radar   ");
+  lcd.setCursor(0, 1);
+  lcd.print("Enviando dados..");
+
+  // Verifica se já passou o tempo de 30ms desde o último movimento
+  unsigned long tempoAtual = millis();
+  if (tempoAtual - ultimoMovimentoRadar > intervaloPasso) {
+    
+    // Reseta o "cronômetro"
+    ultimoMovimentoRadar = tempoAtual;
+
+    // 1. Move o servo para o ângulo atual
+    radarMotor.write(anguloRadar);
+    
+    // 2. Calcula a distância
+    int distance = radarCalcularDistancia(); // Chama a função que copiamos
+
+    // 3. Envia os dados pela Serial (para o Processing)
+    // Exatamente no mesmo formato que o Main.c fazia
+    Serial.print(anguloRadar);
+    Serial.print(",");
+    Serial.print(distance);
+    Serial.print(".");
+
+    // 4. Atualiza o ângulo para o próximo ciclo
+    anguloRadar = anguloRadar + passoRadar;
+
+    // 5. Verifica se chegou nos limites (165 ou 15 graus) e inverte a direção
+    if (anguloRadar >= 165) {
+      anguloRadar = 165;
+      passoRadar = -1; // Inverte para começar a descer
+    } else if (anguloRadar <= 15) {
+      anguloRadar = 15;
+      passoRadar = 1;  // Inverte para começar a subir
+    }
+  }
+}
+
+void medirVelocidade(){
+  lcd.setCursor(0, 0);
+  lcd.print("Modo 3: ");
+  lcd.setCursor(0, 1);
+  lcd.print("Medir Velocidade      ");
+}
+
