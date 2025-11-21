@@ -1,4 +1,4 @@
-## WIP (Work In Progress)- EM DESENVOLVIMENTO
+
 # Produto Educacional: Ondas sonoras com Arduino 🔊
 
 ### Autores:
@@ -6,6 +6,9 @@
 - Gabrielle Cordeiro Santana
 - Lucas Ricardo de Lima Figueiredo
 - Vítor Massena dos Santos
+
+###Vídeo de Apresentação:
+https://youtu.be/yBekaML0FYU?si=8I6dE4sav99km74T
 
 ### Componentes:
 1. Arduino Uno
@@ -34,5 +37,6 @@
   9.  Pronto!!
   
 ### PDF do projeto:
+https://drive.google.com/file/d/1QGET_ROpOZ2MDslWRQmh96MCka28RaY-/view?usp=drivesdk
 
 
